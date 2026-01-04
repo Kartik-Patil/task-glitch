@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DerivedTask, Metrics, Task } from '@/types';
+import { DerivedTask, Metrics, Task, TaskFormPayload } from '@/types';
 import {
   computeAverageROI,
   computePerformanceGrade,
@@ -18,7 +18,7 @@ interface UseTasksState {
   derivedSorted: DerivedTask[];
   metrics: Metrics;
   lastDeleted: Task | null;
-  addTask: (task: Omit<Task, 'id'> & { id?: string }) => void;
+  addTask: (task: TaskFormPayload) => void;   // ✅ FIXED
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
@@ -39,83 +39,62 @@ export function useTasks(): UseTasksState {
   const [error, setError] = useState<string | null>(null);
   const [lastDeleted, setLastDeleted] = useState<Task | null>(null);
 
-  //  Guard for React 18 StrictMode
-  const fetchedRef = useRef(false);
+  // -------- FETCH (Bug 1 already fixed) --------
+  useEffect(() => {
+    let isMounted = true;
 
-  function normalizeTasks(input: any[]): Task[] {
-    const now = Date.now();
-    return (Array.isArray(input) ? input : []).map((t, idx) => {
-      const created = t.createdAt
-        ? new Date(t.createdAt)
-        : new Date(now - (idx + 1) * 24 * 3600 * 1000);
+    async function load() {
+      try {
+        const res = await fetch('/tasks.json');
+        if (!res.ok) throw new Error(`Failed to load tasks.json (${res.status})`);
 
-      const completed =
-        t.completedAt ||
-        (t.status === 'Done'
-          ? new Date(created.getTime() + 24 * 3600 * 1000).toISOString()
-          : undefined);
+        const data = (await res.json()) as any[];
+        const normalized = data.map((t: any, idx: number) => ({
+          id: t.id ?? crypto.randomUUID(),
+          title: String(t.title || '').trim() || 'Untitled Task',
+          revenue: Number.isFinite(Number(t.revenue)) ? Number(t.revenue) : 0,
+          timeTaken: Number(t.timeTaken) > 0 ? Number(t.timeTaken) : 1,
+          priority: t.priority ?? 'Medium',
+          status: t.status ?? 'Todo',
+          notes: t.notes,
+          createdAt: new Date(
+            Date.now() - (idx + 1) * 24 * 3600 * 1000
+          ).toISOString(),
+          completedAt:
+            t.status === 'Done'
+              ? new Date().toISOString()
+              : undefined,
+        }));
 
-      return {
-        id: t.id ?? crypto.randomUUID(),
-        title: String(t.title || '').trim() || 'Untitled Task',
-        revenue: Number.isFinite(Number(t.revenue)) ? Number(t.revenue) : 0,
-        timeTaken: Number(t.timeTaken) > 0 ? Number(t.timeTaken) : 1,
-        priority: t.priority ?? 'Medium',
-        status: t.status ?? 'Todo',
-        notes: t.notes,
-        createdAt: created.toISOString(),
-        completedAt: completed,
-      };
-    });
-  }
-
-  //  SINGLE, GUARDED FETCH EFFECT
-useEffect(() => {
-  let isMounted = true;
-
-  async function load() {
-    try {
-      const res = await fetch('/tasks.json');
-      if (!res.ok) {
-        throw new Error(`Failed to load tasks.json (${res.status})`);
+        if (isMounted) {
+          setTasks(normalized.length ? normalized : generateSalesTasks(50));
+        }
+      } catch (e: any) {
+        if (isMounted) setError(e?.message ?? 'Failed to load tasks');
+      } finally {
+        if (isMounted) setLoading(false);
       }
-
-      const data = (await res.json()) as any[];
-      const normalized = normalizeTasks(data);
-
-      const finalData =
-        normalized.length > 0 ? normalized : generateSalesTasks(50);
-
-      if (isMounted) setTasks(finalData);
-    } catch (e: any) {
-      if (isMounted) setError(e?.message ?? 'Failed to load tasks');
-    } finally {
-      if (isMounted) setLoading(false); // ✅ ALWAYS runs
     }
-  }
 
-  load();
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-  return () => {
-    isMounted = false;
-  };
-}, []);
-
-
-  const derivedSorted = useMemo<DerivedTask[]>(() => {
-    return sortDerived(tasks.map(withDerived));
-  }, [tasks]);
+  const derivedSorted = useMemo(
+    () => sortDerived(tasks.map(withDerived)),
+    [tasks],
+  );
 
   const metrics = useMemo<Metrics>(() => {
-    if (tasks.length === 0) return INITIAL_METRICS;
-
+    if (!tasks.length) return INITIAL_METRICS;
     const totalRevenue = computeTotalRevenue(tasks);
     const totalTimeTaken = tasks.reduce((s, t) => s + t.timeTaken, 0);
     const timeEfficiencyPct = computeTimeEfficiency(tasks);
     const revenuePerHour = computeRevenuePerHour(tasks);
     const averageROI = computeAverageROI(tasks);
     const performanceGrade = computePerformanceGrade(averageROI);
-
     return {
       totalRevenue,
       totalTimeTaken,
@@ -126,40 +105,41 @@ useEffect(() => {
     };
   }, [tasks]);
 
-  const addTask = useCallback((task: Omit<Task, 'id'> & { id?: string }) => {
+  // ✅ FIXED
+  const addTask = useCallback((task: TaskFormPayload) => {
     setTasks(prev => {
       const id = task.id ?? crypto.randomUUID();
-      const timeTaken = task.timeTaken > 0 ? task.timeTaken : 1;
       const createdAt = new Date().toISOString();
       const completedAt =
         task.status === 'Done' ? createdAt : undefined;
 
       return [
         ...prev,
-        { ...task, id, timeTaken, createdAt, completedAt },
+        {
+          ...task,
+          id,
+          createdAt,
+          completedAt,
+        },
       ];
     });
   }, []);
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== id) return t;
-
-        const updated = { ...t, ...patch };
-
-        if (
-          t.status !== 'Done' &&
-          updated.status === 'Done' &&
-          !updated.completedAt
-        ) {
-          updated.completedAt = new Date().toISOString();
-        }
-
-        if (updated.timeTaken <= 0) updated.timeTaken = 1;
-
-        return updated;
-      }),
+      prev.map(t =>
+        t.id !== id
+          ? t
+          : {
+              ...t,
+              ...patch,
+              completedAt:
+                t.status !== 'Done' &&
+                patch.status === 'Done'
+                  ? new Date().toISOString()
+                  : t.completedAt,
+            },
+      ),
     );
   }, []);
 
@@ -190,3 +170,4 @@ useEffect(() => {
     undoDelete,
   };
 }
+  // -------- FETCH (Bug 1 already fixed) --------

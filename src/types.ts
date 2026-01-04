@@ -1,6 +1,10 @@
 export type Priority = 'High' | 'Medium' | 'Low';
 export type Status = 'Todo' | 'In Progress' | 'Done';
 
+/**
+ * Fully materialized Task
+ * (system-owned fields included)
+ */
 export interface Task {
   id: string;
   title: string;
@@ -9,9 +13,18 @@ export interface Task {
   priority: Priority;
   status: Status;
   notes?: string;
-  createdAt: string; // ISO date string
-  completedAt?: string; // ISO date string if Done
+  createdAt: string;     // system generated
+  completedAt?: string; // system generated if Done
 }
+
+/**
+ * Payload coming FROM UI (forms, tables)
+ * System fields must NOT be provided by UI
+ */
+export type TaskFormPayload =
+  Omit<Task, 'id' | 'createdAt' | 'completedAt'> & {
+    id?: string; // present only when editing
+  };
 
 export interface DerivedTask extends Task {
   roi: number | null; // null means N/A
@@ -22,9 +35,7 @@ export interface Metrics {
   totalRevenue: number;
   totalTimeTaken: number;
   timeEfficiencyPct: number; // 0..100
-  revenuePerHour: number; // may be NaN/Infinity -> handle in UI
-  averageROI: number; // average over valid ROI values
+  revenuePerHour: number;   // may be NaN/Infinity -> handle in UI
+  averageROI: number;       // average over valid ROI values
   performanceGrade: 'Excellent' | 'Good' | 'Needs Improvement';
 }
-
-

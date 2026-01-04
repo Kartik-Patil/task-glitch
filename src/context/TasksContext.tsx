@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useTasks } from '@/hooks/useTasks';
-import { DerivedTask, Metrics, Task } from '@/types';
+import { DerivedTask, Metrics, Task, TaskFormPayload } from '@/types';
 
 interface TasksContextValue {
   tasks: Task[];
@@ -9,7 +9,7 @@ interface TasksContextValue {
   derivedSorted: DerivedTask[];
   metrics: Metrics;
   lastDeleted: Task | null;
-  addTask: (task: Omit<Task, 'id'> & { id?: string }) => void;
+  addTask: (task: TaskFormPayload) => void; // ✅ FIXED
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
@@ -25,7 +25,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 export function useTasksContext(): TasksContextValue {
   const ctx = useContext(TasksContext);
   if (!ctx) throw new Error('useTasksContext must be used within TasksProvider');
-  return ctx as TasksContextValue;
+  return ctx;
 }
-
-
+  // -------- FETCH (Bug 1 already fixed) --------
