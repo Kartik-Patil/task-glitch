@@ -177,7 +177,7 @@ function AppContent() {
                   averageROI: computeAverageROI(filtered),
                   performanceGrade: computePerformanceGrade(
                     computeAverageROI(filtered),
-                  ),
+                  ) as "Excellent" | "Good" | "Needs Improvement",
                 }}
               />
 

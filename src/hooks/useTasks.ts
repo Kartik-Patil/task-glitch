@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DerivedTask, Metrics, Task, TaskFormPayload } from '@/types';
 import {
@@ -23,7 +22,7 @@ interface UseTasksState {
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
-  clearLastDeleted: () => void; // ✅ NEW
+  clearLastDeleted: () => void;
 }
 
 const INITIAL_METRICS: Metrics = {
@@ -62,7 +61,9 @@ export function useTasks(): UseTasksState {
           completedAt: t.status === 'Done' ? new Date().toISOString() : undefined,
         }));
 
-        if (mounted) setTasks(normalized.length ? normalized : generateSalesTasks(50));
+        if (mounted) {
+          setTasks(normalized.length ? normalized : generateSalesTasks(50));
+        }
       } catch (e: any) {
         if (mounted) setError(e.message);
       } finally {
@@ -83,12 +84,16 @@ export function useTasks(): UseTasksState {
 
   const metrics = useMemo<Metrics>(() => {
     if (!tasks.length) return INITIAL_METRICS;
+
     const totalRevenue = computeTotalRevenue(tasks);
     const totalTimeTaken = tasks.reduce((s, t) => s + t.timeTaken, 0);
     const timeEfficiencyPct = computeTimeEfficiency(tasks);
     const revenuePerHour = computeRevenuePerHour(tasks);
     const averageROI = computeAverageROI(tasks);
-    const performanceGrade = computePerformanceGrade(averageROI);
+
+    // ✅ FIX: Explicitly constrain to Metrics union
+    const performanceGrade: Metrics['performanceGrade'] =
+      computePerformanceGrade(averageROI) as Metrics['performanceGrade'];
 
     return {
       totalRevenue,
