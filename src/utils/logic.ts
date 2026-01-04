@@ -85,3 +85,61 @@ export function sortTasks(
     return a.id.localeCompare(b.id);
   });
 }
+
+// Groups completed tasks by ISO week (Mon–Sun) and returns chart-friendly data
+export function computeThroughputByWeek(tasks: Task[]) {
+  const counts = new Map<string, number>();
+
+  const toIsoWeekLabel = (d: Date) => {
+    // start of ISO week (Monday)
+    const copy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const day = copy.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    copy.setUTCDate(copy.getUTCDate() + diff);
+
+    const year = copy.getUTCFullYear();
+    const dayOfYear = Math.floor(
+      (copy.getTime() - Date.UTC(year, 0, 1)) / 86_400_000
+    ) + 1;
+    const week = Math.ceil(dayOfYear / 7);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  };
+
+  tasks.forEach((t) => {
+    if (!t || t.status?.toLowerCase?.() !== 'done') return;
+    const completed = t.completedAt;
+    if (!completed) return;
+    const d = new Date(completed);
+    if (Number.isNaN(d.getTime())) return;
+
+    const label = toIsoWeekLabel(d);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  });
+
+  return Array.from(counts.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([week, count]) => ({ week, count }));
+}
+
+export function computeFunnel(tasks: Task[]) {
+  const funnel = { todo: 0, inProgress: 0, done: 0 };
+
+  tasks.forEach((t) => {
+    const status = (t.status || '').toLowerCase();
+    if (status === 'todo') funnel.todo += 1;
+    else if (status === 'in progress' || status === 'in_progress' || status === 'inprogress')
+      funnel.inProgress += 1;
+    else if (status === 'done') funnel.done += 1;
+  });
+
+  return funnel;
+}
+
+// Safe day-difference helper used by TaskDetailsDialog
+export function daysBetween(a: Date | string | number | null | undefined, b: Date | string | number | null | undefined): number {
+  const d1 = a != null ? new Date(a) : null;
+  const d2 = b != null ? new Date(b) : null;
+  if (!d1 || !d2 || Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return 0;
+  const diffMs = Math.abs(d2.getTime() - d1.getTime());
+  return Math.floor(diffMs / 86_400_000);
+}
