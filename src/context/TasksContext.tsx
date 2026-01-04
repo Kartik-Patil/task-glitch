@@ -1,3 +1,5 @@
+// FILE: src/context/TasksContext.tsx
+
 import { createContext, useContext, ReactNode } from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import { DerivedTask, Metrics, Task, TaskFormPayload } from '@/types';
@@ -9,10 +11,11 @@ interface TasksContextValue {
   derivedSorted: DerivedTask[];
   metrics: Metrics;
   lastDeleted: Task | null;
-  addTask: (task: TaskFormPayload) => void; // ✅ FIXED
+  addTask: (task: TaskFormPayload) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
+  clearLastDeleted: () => void; // ✅ NEW
 }
 
 const TasksContext = createContext<TasksContextValue | undefined>(undefined);
@@ -27,4 +30,3 @@ export function useTasksContext(): TasksContextValue {
   if (!ctx) throw new Error('useTasksContext must be used within TasksProvider');
   return ctx;
 }
-  // -------- FETCH (Bug 1 already fixed) --------

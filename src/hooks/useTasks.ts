@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DerivedTask, Metrics, Task, TaskFormPayload } from '@/types';
 import {
   computeAverageROI,
@@ -7,7 +8,7 @@ import {
   computeTimeEfficiency,
   computeTotalRevenue,
   withDerived,
-  sortTasks as sortDerived,
+  sortTasks,
 } from '@/utils/logic';
 import { generateSalesTasks } from '@/utils/seed';
 
@@ -18,10 +19,11 @@ interface UseTasksState {
   derivedSorted: DerivedTask[];
   metrics: Metrics;
   lastDeleted: Task | null;
-  addTask: (task: TaskFormPayload) => void;   // ✅ FIXED
+  addTask: (task: TaskFormPayload) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
+  clearLastDeleted: () => void; // ✅ NEW
 }
 
 const INITIAL_METRICS: Metrics = {
@@ -39,51 +41,43 @@ export function useTasks(): UseTasksState {
   const [error, setError] = useState<string | null>(null);
   const [lastDeleted, setLastDeleted] = useState<Task | null>(null);
 
-  // -------- FETCH (Bug 1 already fixed) --------
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
     async function load() {
       try {
         const res = await fetch('/tasks.json');
-        if (!res.ok) throw new Error(`Failed to load tasks.json (${res.status})`);
+        if (!res.ok) throw new Error('Failed to load tasks');
 
         const data = (await res.json()) as any[];
-        const normalized = data.map((t: any, idx: number) => ({
-          id: t.id ?? crypto.randomUUID(),
-          title: String(t.title || '').trim() || 'Untitled Task',
-          revenue: Number.isFinite(Number(t.revenue)) ? Number(t.revenue) : 0,
-          timeTaken: Number(t.timeTaken) > 0 ? Number(t.timeTaken) : 1,
-          priority: t.priority ?? 'Medium',
-          status: t.status ?? 'Todo',
+        const normalized = data.map((t, i) => ({
+          id: t.id,
+          title: t.title,
+          revenue: Number(t.revenue),
+          timeTaken: Number(t.timeTaken),
+          priority: t.priority,
+          status: t.status,
           notes: t.notes,
-          createdAt: new Date(
-            Date.now() - (idx + 1) * 24 * 3600 * 1000
-          ).toISOString(),
-          completedAt:
-            t.status === 'Done'
-              ? new Date().toISOString()
-              : undefined,
+          createdAt: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+          completedAt: t.status === 'Done' ? new Date().toISOString() : undefined,
         }));
 
-        if (isMounted) {
-          setTasks(normalized.length ? normalized : generateSalesTasks(50));
-        }
+        if (mounted) setTasks(normalized.length ? normalized : generateSalesTasks(50));
       } catch (e: any) {
-        if (isMounted) setError(e?.message ?? 'Failed to load tasks');
+        if (mounted) setError(e.message);
       } finally {
-        if (isMounted) setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
 
     load();
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, []);
 
   const derivedSorted = useMemo(
-    () => sortDerived(tasks.map(withDerived)),
+    () => sortTasks(tasks.map(withDerived)),
     [tasks],
   );
 
@@ -95,6 +89,7 @@ export function useTasks(): UseTasksState {
     const revenuePerHour = computeRevenuePerHour(tasks);
     const averageROI = computeAverageROI(tasks);
     const performanceGrade = computePerformanceGrade(averageROI);
+
     return {
       totalRevenue,
       totalTimeTaken,
@@ -105,40 +100,31 @@ export function useTasks(): UseTasksState {
     };
   }, [tasks]);
 
-  // ✅ FIXED
   const addTask = useCallback((task: TaskFormPayload) => {
-    setTasks(prev => {
-      const id = task.id ?? crypto.randomUUID();
-      const createdAt = new Date().toISOString();
-      const completedAt =
-        task.status === 'Done' ? createdAt : undefined;
-
-      return [
-        ...prev,
-        {
-          ...task,
-          id,
-          createdAt,
-          completedAt,
-        },
-      ];
-    });
+    setTasks(prev => [
+      ...prev,
+      {
+        ...task,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        completedAt: task.status === 'Done' ? new Date().toISOString() : undefined,
+      },
+    ]);
   }, []);
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks(prev =>
       prev.map(t =>
-        t.id !== id
-          ? t
-          : {
+        t.id === id
+          ? {
               ...t,
               ...patch,
               completedAt:
-                t.status !== 'Done' &&
-                patch.status === 'Done'
+                t.status !== 'Done' && patch.status === 'Done'
                   ? new Date().toISOString()
                   : t.completedAt,
-            },
+            }
+          : t,
       ),
     );
   }, []);
@@ -157,6 +143,10 @@ export function useTasks(): UseTasksState {
     setLastDeleted(null);
   }, [lastDeleted]);
 
+  const clearLastDeleted = useCallback(() => {
+    setLastDeleted(null);
+  }, []);
+
   return {
     tasks,
     loading,
@@ -168,6 +158,6 @@ export function useTasks(): UseTasksState {
     updateTask,
     deleteTask,
     undoDelete,
+    clearLastDeleted,
   };
 }
-  // -------- FETCH (Bug 1 already fixed) --------

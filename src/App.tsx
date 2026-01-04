@@ -5,21 +5,22 @@ import {
   Button,
   CircularProgress,
   Container,
-  MenuItem,
-  Select,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
+
+import { useCallback, useMemo, useState } from 'react';
+
 import MetricsBar from '@/components/MetricsBar';
 import TaskTable, { TaskFormPayload } from '@/components/TaskTable';
 import UndoSnackbar from '@/components/UndoSnackbar';
-import { useCallback, useMemo, useState } from 'react';
-import { UserProvider, useUser } from '@/context/UserContext';
-import { TasksProvider, useTasksContext } from '@/context/TasksContext';
 import ChartsDashboard from '@/components/ChartsDashboard';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import ActivityLog, { ActivityItem } from '@/components/ActivityLog';
+
+import { UserProvider, useUser } from '@/context/UserContext';
+import { TasksProvider, useTasksContext } from '@/context/TasksContext';
+
 import { downloadCSV, toCSV } from '@/utils/csv';
 import type { Task } from '@/types';
 import {
@@ -31,6 +32,7 @@ import {
 } from '@/utils/logic';
 
 function AppContent() {
+  /* -------------------- CONTEXT -------------------- */
   const {
     loading,
     error,
@@ -40,15 +42,18 @@ function AppContent() {
     deleteTask,
     undoDelete,
     lastDeleted,
+    clearLastDeleted, // ✅ FIX
   } = useTasksContext();
 
-  const handleCloseUndo = () => {};
-  const [q, setQ] = useState('');
-  const [fStatus, setFStatus] = useState<string>('All');
-  const [fPriority, setFPriority] = useState<string>('All');
   const { user } = useUser();
+
+  /* -------------------- LOCAL STATE -------------------- */
+  const [q] = useState('');
+  const [fStatus] = useState<string>('All');
+  const [fPriority] = useState<string>('All');
   const [activity, setActivity] = useState<ActivityItem[]>([]);
 
+  /* -------------------- HELPERS -------------------- */
   const createActivity = useCallback(
     (type: ActivityItem['type'], summary: string): ActivityItem => ({
       id:
@@ -71,7 +76,7 @@ function AppContent() {
     });
   }, [derivedSorted, q, fStatus, fPriority]);
 
-  // ✅ FIXED TYPE
+  /* -------------------- ACTIONS -------------------- */
   const handleAdd = useCallback(
     (payload: TaskFormPayload) => {
       addTask(payload);
@@ -108,6 +113,7 @@ function AppContent() {
     [deleteTask, createActivity],
   );
 
+  /* -------------------- UNDO FIX -------------------- */
   const handleUndo = useCallback(() => {
     undoDelete();
     setActivity(prev =>
@@ -115,10 +121,16 @@ function AppContent() {
     );
   }, [undoDelete, createActivity]);
 
+  const handleCloseUndo = useCallback(() => {
+    clearLastDeleted(); // ✅ CRITICAL FIX
+  }, [clearLastDeleted]);
+
+  /* -------------------- RENDER -------------------- */
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
       <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
+          {/* Header */}
           <Stack direction="row" justifyContent="space-between">
             <Box>
               <Typography variant="h3" fontWeight={700}>
@@ -128,6 +140,7 @@ function AppContent() {
                 Welcome back, {user.name.split(' ')[0]}.
               </Typography>
             </Box>
+
             <Stack direction="row" spacing={2} alignItems="center">
               <Button
                 variant="outlined"
@@ -181,6 +194,7 @@ function AppContent() {
             </>
           )}
 
+          {/* ✅ SINGLE, CORRECT UNDO SNACKBAR */}
           <UndoSnackbar
             open={!!lastDeleted}
             onClose={handleCloseUndo}
