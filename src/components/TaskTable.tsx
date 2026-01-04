@@ -31,7 +31,7 @@ export type TaskFormPayload =
 
 interface Props {
   tasks: DerivedTask[];
-  onAdd: (payload: TaskFormPayload) => void;        // ✅ FIXED
+  onAdd: (payload: TaskFormPayload) => void;
   onUpdate: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
 }
@@ -63,16 +63,27 @@ export default function TaskTable({
       const { id, ...rest } = value;
       onUpdate(id, rest);
     } else {
-      onAdd(value); // ✅ NOW TYPE-SAFE
+      onAdd(value);
     }
   };
 
   return (
     <Card>
       <CardContent>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-          <Typography variant="h6" fontWeight={700}>Tasks</Typography>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={handleAddClick}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
+          <Typography variant="h6" fontWeight={700}>
+            Tasks
+          </Typography>
+          <Button
+            startIcon={<AddIcon />}
+            variant="contained"
+            onClick={handleAddClick}
+          >
             Add Task
           </Button>
         </Stack>
@@ -96,8 +107,13 @@ export default function TaskTable({
                 <TableRow
                   key={t.id}
                   hover
-                  onClick={() => setDetails(t)}
                   sx={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    // ✅ IGNORE clicks from action buttons
+                    const target = e.target as HTMLElement;
+                    if (target.closest('[data-action]')) return;
+                    setDetails(t);
+                  }}
                 >
                   <TableCell>
                     <Stack spacing={0.5}>
@@ -116,20 +132,26 @@ export default function TaskTable({
                     </Stack>
                   </TableCell>
 
-                  <TableCell align="right">${t.revenue.toLocaleString()}</TableCell>
+                  <TableCell align="right">
+                    ${t.revenue.toLocaleString()}
+                  </TableCell>
                   <TableCell align="right">{t.timeTaken}</TableCell>
-                  <TableCell align="right">{t.roi == null ? 'N/A' : t.roi.toFixed(1)}</TableCell>
+                  <TableCell align="right">
+                    {t.roi == null ? 'N/A' : t.roi.toFixed(1)}
+                  </TableCell>
                   <TableCell>{t.priority}</TableCell>
                   <TableCell>{t.status}</TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      justifyContent="flex-end"
+                    >
                       <Tooltip title="Edit">
                         <IconButton
                           size="small"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleEditClick(t);
-                          }}
+                          data-action
+                          onClick={() => handleEditClick(t)}
                         >
                           <EditIcon fontSize="small" />
                         </IconButton>
@@ -139,10 +161,8 @@ export default function TaskTable({
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={e => {
-                            e.stopPropagation();
-                            onDelete(t.id);
-                          }}
+                          data-action
+                          onClick={() => onDelete(t.id)}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
